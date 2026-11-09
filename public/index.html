@@ -2,96 +2,150 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Bexley Pay</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
-:root{--bg:#050505;--ink:#f2f2f2;--mute:#8a8f8a;--line:#222622;--g:#2bd96b}
+:root{--bg:#050505;--card:#0d0f0d;--ink:#f2f2f2;--mute:#8a8f8a;--line:#232823;--g:#2bd96b}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,"Segoe UI",Helvetica,Arial,sans-serif;min-height:100vh;display:grid;place-items:center;padding:24px}
-main{width:100%;max-width:420px}
-h1{font-size:15px;font-weight:600;margin:0 0 40px;color:var(--mute)}
-.big{font-size:56px;font-weight:700;letter-spacing:-2px;margin:0 0 4px}
-.big span{color:var(--g)}
-p.note{color:var(--mute);margin:0 0 32px}
-label{display:block;font-size:14px;color:var(--mute);margin:20px 0 6px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,"Segoe UI",Helvetica,Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:28px 20px}
+header{width:100%;max-width:440px;display:flex;align-items:center;gap:10px;margin-bottom:28px;font-weight:600}
+.logo{width:30px;height:30px;border-radius:8px;background:var(--g);color:#031a0d;display:grid;place-items:center;font-size:14px;font-weight:700}
+main{width:100%;max-width:440px;flex:1}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px;margin-bottom:16px}
+.shop{color:var(--mute);font-size:14px;margin:0}
+.amount{font-size:52px;font-weight:700;letter-spacing:-2px;margin:4px 0 2px}
+.amount i{font-style:normal;color:var(--g)}
+.note{color:var(--mute);margin:0}
+h2{font-size:28px;line-height:1.15;margin:0 0 8px;letter-spacing:-1px}
+.steps{display:flex;gap:8px;margin-bottom:16px}
+.steps div{flex:1;text-align:center;font-size:13px;color:var(--mute);border-top:3px solid var(--line);padding-top:8px}
+.steps div.on{color:var(--ink);border-color:var(--g)}
+label{display:block;font-size:14px;color:var(--mute);margin:18px 0 6px}
 input,select{width:100%;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:14px;font:inherit}
 input:focus,select:focus,button:focus-visible{outline:2px solid var(--g);outline-offset:2px}
-button{width:100%;margin-top:28px;background:var(--g);color:#031a0d;border:0;border-radius:10px;padding:15px;font:inherit;font-weight:600;cursor:pointer}
-button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button{width:100%;margin-top:22px;background:var(--g);color:#031a0d;border:0;border-radius:10px;padding:15px;font:inherit;font-weight:600;cursor:pointer}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);margin-top:12px}
 button:disabled{opacity:.5}
-.addr{word-break:break-all;border:1px solid var(--line);border-radius:10px;padding:14px;margin:6px 0 0;font-family:ui-monospace,Menlo,monospace;font-size:14px}
-.err{color:#ff6b6b;margin-top:16px;min-height:1.5em}
+.addr{word-break:break-all;border:1px solid var(--line);border-radius:10px;padding:14px;font-family:ui-monospace,Menlo,monospace;font-size:14px}
+.qr{background:#fff;border-radius:14px;padding:16px;width:max-content;margin:0 auto 8px}
+.qr img,.qr canvas{display:block}
+.center{text-align:center}
+.err{color:#ff6b6b;margin-top:14px;min-height:1.4em}
 .hide{display:none}
-.state{font-size:20px;margin:28px 0 0}
-</style></head><body><main>
-<h1>Bexley Pay</h1>
+.state{font-size:18px;margin:4px 0 0}
+.receipt{border-top:1px dashed var(--line);margin-top:16px;padding-top:12px;color:var(--mute);font-size:14px}
+.receipt b{color:var(--ink);font-weight:500}
+footer{color:var(--mute);font-size:13px;margin-top:24px}
+</style></head><body>
+<header><div class="logo">B</div><span>Bexley Pay</span></header>
+<main>
 
 <section id="seller" class="hide">
-  <p class="big">Get paid<br>from any chain</p>
-  <p class="note">Make a link. Your buyer pays from any app. You receive USDC on NEAR.</p>
-  <label for="sAmount">Amount in USD</label>
-  <input id="sAmount" type="number" min="1" step="0.01" placeholder="40">
-  <label for="sNote">What is it for?</label>
-  <input id="sNote" placeholder="Phone case">
-  <button id="makeLink">Create payment link</button>
-  <div id="linkOut" class="hide">
-    <label>Your link</label><div class="addr" id="linkText"></div>
+  <div class="card">
+    <h2>Get paid from any chain</h2>
+    <p class="note">Make a link or a QR code. Your customer pays from any crypto app. You receive USDC on NEAR.</p>
+    <label for="sShop">Shop name</label><input id="sShop" placeholder="Bexley Gadgets">
+    <label for="sAmount">Amount in USD</label><input id="sAmount" type="number" min="1" step="0.01" placeholder="40">
+    <label for="sNote">What is it for?</label><input id="sNote" placeholder="Phone case">
+    <button id="makeLink">Create payment QR</button>
+  </div>
+  <div id="linkOut" class="card hide center">
+    <p class="note" style="margin-bottom:14px">Customer scans this with their phone camera</p>
+    <div class="qr" id="qr"></div>
+    <label>Or send this link</label><div class="addr" id="linkText"></div>
     <button class="ghost" id="copyLink">Copy link</button>
+    <button class="ghost" id="openLink">Open payment page</button>
   </div>
 </section>
 
 <section id="buyer" class="hide">
-  <p class="big"><span>$</span><span id="bAmount" style="color:inherit"></span></p>
-  <p class="note" id="bNote"></p>
-  <div id="step1">
-    <label for="chain">Pay from this chain</label><select id="chain"></select>
+  <div class="steps"><div id="s1" class="on">1 Choose</div><div id="s2">2 Send</div><div id="s3">3 Paid</div></div>
+  <div class="card">
+    <p class="shop" id="bShop"></p>
+    <p class="amount"><i>$</i><span id="bAmount"></span></p>
+    <p class="note" id="bNote"></p>
+  </div>
+  <div class="card" id="step1">
+    <label for="chain" style="margin-top:0">Pay from this chain</label><select id="chain"></select>
     <label for="token">Pay with this token</label><select id="token"></select>
     <label for="refund">Your refund address on that chain</label>
     <input id="refund" placeholder="Where we return the money if the payment fails">
     <button id="getQuote">Get payment details</button>
+    <div class="err" id="err"></div>
   </div>
-  <div id="step2" class="hide">
-    <label>Send exactly</label><div class="addr" id="sendAmt"></div>
+  <div class="card hide" id="step2">
+    <label style="margin-top:0">Send exactly</label><div class="addr" id="sendAmt"></div>
     <label>To this address</label><div class="addr" id="sendAddr"></div>
     <button class="ghost" id="copyAddr">Copy address</button>
-    <p class="note" id="timer" style="margin-top:20px"></p>
+    <p class="note" id="timer" style="margin-top:16px"></p>
     <p class="state" id="state">Waiting for your payment…</p>
+    <div class="receipt hide" id="receipt"></div>
   </div>
-  <div class="err" id="err"></div>
 </section>
+</main>
+<footer>Powered by NEAR Intents</footer>
 
 <script>
 const $=id=>document.getElementById(id);
 const qs=new URLSearchParams(location.search);
-const amount=qs.get("amount"), note=qs.get("note")||"";
-if(!amount){ $("seller").classList.remove("hide");
-  $("makeLink").onclick=()=>{ const a=$("sAmount").value; if(!(a>0)) return;
-    const u=new URL(location.origin+location.pathname); u.searchParams.set("amount",a);
+const amount=qs.get("amount"), note=qs.get("note")||"", shop=qs.get("shop")||"";
+
+if(!amount){
+  $("seller").classList.remove("hide");
+  $("makeLink").onclick=()=>{
+    const a=$("sAmount").value; if(!(a>0)) return;
+    const u=new URL(location.origin+location.pathname);
+    u.searchParams.set("amount",a);
     if($("sNote").value) u.searchParams.set("note",$("sNote").value);
-    $("linkText").textContent=u.href; $("linkOut").classList.remove("hide"); };
+    if($("sShop").value) u.searchParams.set("shop",$("sShop").value);
+    $("linkText").textContent=u.href; $("linkOut").classList.remove("hide");
+    $("qr").innerHTML="";
+    if(window.QRCode) new QRCode($("qr"),{text:u.href,width:220,height:220,colorDark:"#000000",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M});
+    else $("qr").textContent="QR could not load. Check your internet and refresh.";
+    $("openLink").onclick=()=>window.open(u.href,"_blank");
+  };
   $("copyLink").onclick=()=>{navigator.clipboard.writeText($("linkText").textContent);$("copyLink").textContent="Copied";};
-} else { $("buyer").classList.remove("hide"); $("bAmount").textContent=Number(amount).toFixed(2); $("bNote").textContent=note;
+} else {
+  $("buyer").classList.remove("hide");
+  $("bAmount").textContent=Number(amount).toFixed(2);
+  $("bNote").textContent=note; $("bShop").textContent=shop||"Payment";
+  const setStep=n=>["s1","s2","s3"].forEach((id,i)=>$(id).classList.toggle("on",i<n));
   let tokens=[];
+  const fillTokens=()=>{ const c=$("chain").value;
+    $("token").innerHTML=tokens.filter(x=>x.chain===c).map(x=>`<option value="${x.assetId}">${x.symbol}</option>`).join(""); };
   fetch("/api/tokens").then(r=>r.json()).then(t=>{ tokens=t;
-    const chains=[...new Set(t.map(x=>x.chain))].sort();
-    $("chain").innerHTML=chains.map(c=>`<option>${c}</option>`).join(""); fillTokens(); })
+    $("chain").innerHTML=[...new Set(t.map(x=>x.chain))].sort().map(c=>`<option>${c}</option>`).join(""); fillTokens(); })
     .catch(()=>$("err").textContent="Could not load chains. Refresh the page.");
-  function fillTokens(){ const c=$("chain").value;
-    $("token").innerHTML=tokens.filter(x=>x.chain===c).map(x=>`<option value="${x.assetId}">${x.symbol}</option>`).join(""); }
   $("chain").onchange=fillTokens;
-  $("getQuote").onclick=async()=>{ $("err").textContent=""; $("getQuote").disabled=true;
+
+  $("getQuote").onclick=async()=>{
+    $("err").textContent=""; $("getQuote").disabled=true;
     const r=await fetch("/api/quote",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({amount,originAsset:$("token").value,refundTo:$("refund").value.trim()})});
     const d=await r.json(); $("getQuote").disabled=false;
     if(!r.ok){ $("err").textContent=d.error; return; }
-    $("step1").classList.add("hide"); $("step2").classList.remove("hide");
+    $("step1").classList.add("hide"); $("step2").classList.remove("hide"); setStep(2);
     const sym=$("token").selectedOptions[0].textContent;
-    $("sendAmt").textContent=`${d.amountIn} ${sym}`+(d.memo?`  (memo: ${d.memo})`:""); $("sendAddr").textContent=d.depositAddress;
+    $("sendAmt").textContent=`${d.amountIn} ${sym}`+(d.memo?`  (memo: ${d.memo})`:"");
+    $("sendAddr").textContent=d.depositAddress;
     $("copyAddr").onclick=()=>{navigator.clipboard.writeText(d.depositAddress);$("copyAddr").textContent="Copied";};
-    const end=new Date(d.deadline).getTime();
-    const tick=setInterval(()=>{ const s=Math.max(0,Math.round((end-Date.now())/1000));
-      $("timer").textContent=s?`This quote expires in ${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`:"This quote expired. Refresh to start again."; if(!s)clearInterval(tick);},1000);
-    const labels={PENDING_DEPOSIT:"Waiting for your payment…",KNOWN_DEPOSIT_TX:"Payment seen. Confirming…",PROCESSING:"Payment received. Sending to the seller…",SUCCESS:"Paid. The seller has been paid.",INCOMPLETE_DEPOSIT:"You sent less than the full amount.",REFUNDED:"Payment failed. Your money was refunded.",FAILED:"Payment failed."};
-    const poll=setInterval(async()=>{ const s=await (await fetch("/api/status?depositAddress="+encodeURIComponent(d.depositAddress))).json();
-      if(s.status){ $("state").textContent=labels[s.status]||s.status; if(["SUCCESS","REFUNDED","FAILED"].includes(s.status)) clearInterval(poll);} },5000);
+    // Show at most 20 minutes, even if the quote lasts longer
+    const end=Math.min(new Date(d.deadline).getTime()||Infinity, Date.now()+20*60*1000);
+    let done=false;
+    const tick=setInterval(()=>{ if(done){clearInterval(tick);return;}
+      const s=Math.max(0,Math.round((end-Date.now())/1000));
+      $("timer").textContent=s?`Quote valid for ${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`:"This quote expired. Refresh to start again.";
+      if(!s)clearInterval(tick);},1000);
+    const labels={PENDING_DEPOSIT:"Waiting for your payment…",KNOWN_DEPOSIT_TX:"Payment seen. Confirming…",PROCESSING:"Payment received. Sending to the seller…",SUCCESS:"Paid. Thank you.",INCOMPLETE_DEPOSIT:"You sent less than the full amount.",REFUNDED:"Payment failed. Your money was refunded.",FAILED:"Payment failed."};
+    const poll=setInterval(async()=>{
+      const s=await (await fetch("/api/status?depositAddress="+encodeURIComponent(d.depositAddress))).json();
+      if(!s.status) return;
+      $("state").textContent=labels[s.status]||s.status;
+      if(s.status==="SUCCESS"){ done=true; setStep(3); $("timer").textContent="";
+        $("receipt").classList.remove("hide");
+        $("receipt").innerHTML=`Paid to <b></b><br>Amount <b>$${Number(amount).toFixed(2)}</b><br>Time <b>${new Date().toLocaleString()}</b>`;
+        $("receipt").querySelector("b").textContent=shop||"the seller"; }
+      if(["SUCCESS","REFUNDED","FAILED"].includes(s.status)) clearInterval(poll);
+    },5000);
   };
 }
-</script></main></body></html>
+</script></body></html>
