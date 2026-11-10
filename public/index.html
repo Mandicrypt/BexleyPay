@@ -120,7 +120,7 @@ if(!amount){
   $("getQuote").onclick=async()=>{
     $("err").textContent=""; $("getQuote").disabled=true;
     const r=await fetch("/api/quote",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({amount,originAsset:$("token").value,refundTo:$("refund").value.trim()})});
+      body:JSON.stringify({amount,originAsset:$("token").value,refundTo:$("refund").value.trim(),to:qs.get("to")})});
     const d=await r.json(); $("getQuote").disabled=false;
     if(!r.ok){ $("err").textContent=d.error; return; }
     $("step1").classList.add("hide"); $("step2").classList.remove("hide"); setStep(2);

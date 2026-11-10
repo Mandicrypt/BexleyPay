@@ -24,11 +24,13 @@ app.get("/api/tokens", async (_req, res) => {
 
 app.post("/api/quote", async (req, res) => {
   try {
-    const { amount, originAsset, refundTo } = req.body;
+    const { amount, originAsset, refundTo, to } = req.body;
+    const OK = /^(?:[a-f0-9]{64}|[a-z0-9]+(?:[-_.][a-z0-9]+)*)$/;
+    const payTo = to && to.length >= 2 && to.length <= 64 && OK.test(to) ? to : MERCHANT_NEAR_ACCOUNT;
     const usd = Number(amount);
     if (!(usd > 0 && usd <= 10000)) return res.status(400).json({ error: "Amount must be between 0 and 10,000." });
     if (!originAsset || !refundTo) return res.status(400).json({ error: "Pick a token and enter a refund address." });
-    if (!MERCHANT_NEAR_ACCOUNT) return res.status(500).json({ error: "Seller account is not set." });
+    if (!payTo) return res.status(500).json({ error: "Seller account is not set." });
     const body = {
       dry: false,
       depositMode: "SIMPLE",
@@ -40,7 +42,7 @@ app.post("/api/quote", async (req, res) => {
       amount: String(Math.round(usd * 1e6)), // USDC has 6 decimals
       refundTo,
       refundType: "ORIGIN_CHAIN",
-      recipient: MERCHANT_NEAR_ACCOUNT,
+      recipient: payTo,
       recipientType: "DESTINATION_CHAIN",
       deadline: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
       quoteWaitingTimeMs: 3000,
