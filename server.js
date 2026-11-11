@@ -64,4 +64,8 @@ app.get("/api/status", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Could not check status." }); }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log("Bexley Pay running on http://localhost:3000"));
+// Run as a normal server on your Mac or Render. On Vercel the app is loaded from api/index.js instead.
+if (require.main === module) {
+  app.listen(process.env.PORT || 3000, () => console.log("Bexley Pay running on http://localhost:3000"));
+}
+module.exports = app;
