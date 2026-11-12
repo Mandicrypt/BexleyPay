@@ -127,7 +127,7 @@ function Dashboard() {
           <button className="ghost" onClick={() => navigator.clipboard.writeText(out.link)}>Copy link</button></div>}
         {saved && tab === "hist" && <div className="card"><h2>History</h2>
           {hist === null ? <p className="mute">Loading…</p> : hist.length === 0 ? <p className="mute">No payments yet. Payments to {saved} show here.</p> :
-            hist.map(p => <div key={p.deposit_address} className="row"><div><b>${Number(p.usd).toFixed(2)}</b><div className="mute sm">{p.customer ? p.customer + " · " : ""}{new Date(p.created_at).toLocaleString()}</div></div><span className={"tag " + label(p.status).cls}>{label(p.status).t}</span></div>)}
+            hist.map(p => <div key={p.deposit_address} className="row"><div><b>${Number(p.usd).toFixed(2)}</b><div className="mute sm">{p.customer ? p.customer + " · " : ""}{new Date(p.created_at).toLocaleString()}</div></div><span>{p.nft_tx && <a className="nft" href={"https://nearblocks.io/txns/" + p.nft_tx} target="_blank" rel="noopener">NFT</a>}<span className={"tag " + label(p.status).cls}>{label(p.status).t}</span></span></div>)}
           <button className="ghost" onClick={loadHist}>Refresh</button></div>}
       </>)}
     </div>

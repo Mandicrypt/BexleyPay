@@ -71,6 +71,8 @@ footer{color:var(--mute);font-size:13px;margin-top:24px}
     <label for="token">Pay with this token</label><select id="token"></select>
     <label for="refund">Your refund address on that chain</label>
     <input id="refund" placeholder="Where we return the money if the payment fails">
+    <label for="rcpt">Receipt NFT goes to this .near account (optional)</label>
+    <input id="rcpt" placeholder="yourname.near" autocapitalize="none" autocorrect="off" spellcheck="false">
     <button id="getQuote">Get payment details</button>
     <div class="err" id="err"></div>
   </div>
@@ -122,7 +124,7 @@ if(!amount){
   $("getQuote").onclick=async()=>{
     $("err").textContent=""; $("getQuote").disabled=true;
     const r=await fetch("/api/quote",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({amount,originAsset:$("token").value,refundTo:$("refund").value.trim(),to:qs.get("to"),customer:cust})});
+      body:JSON.stringify({amount,originAsset:$("token").value,refundTo:$("refund").value.trim(),to:qs.get("to"),customer:cust,shop,receiptTo:$("rcpt").value.trim()})});
     const d=await r.json(); $("getQuote").disabled=false;
     if(!r.ok){ $("err").textContent=d.error; return; }
     $("step1").classList.add("hide"); $("step2").classList.remove("hide"); setStep(2);
@@ -145,7 +147,8 @@ if(!amount){
       if(s.status==="SUCCESS"){ done=true; setStep(3); $("timer").textContent="";
         $("receipt").classList.remove("hide");
         $("receipt").innerHTML=`Paid to <b></b><br>Amount <b>$${Number(amount).toFixed(2)}</b><br>Time <b>${new Date().toLocaleString()}</b>`;
-        $("receipt").querySelector("b").textContent=shop||"the seller"; }
+        $("receipt").querySelector("b").textContent=shop||"the seller";
+        if(s.nft){ const a=document.createElement("a"); a.href="https://nearblocks.io/txns/"+s.nft; a.target="_blank"; a.rel="noopener"; a.textContent="Receipt NFT minted. View it"; a.style.cssText="display:block;margin-top:10px;color:var(--g)"; $("receipt").appendChild(a); } }
       if(["SUCCESS","REFUNDED","FAILED"].includes(s.status)) clearInterval(poll);
     },5000);
   };

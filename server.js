@@ -15,6 +15,11 @@ function db() {
     await sql`ALTER TABLE merchants ADD COLUMN IF NOT EXISTS shop_name text`;
     await sql`CREATE TABLE IF NOT EXISTS payments (deposit_address text PRIMARY KEY, pay_to text NOT NULL, usd numeric NOT NULL, origin_asset text, status text DEFAULT 'PENDING', created_at timestamptz DEFAULT now())`;
     await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer text`;
+    await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS receipt_to text`;
+    await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS shop text`;
+    await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS nft_state text`;
+    await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS nft_tx text`;
+    await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS nft_tries int DEFAULT 0`;
     await sql`CREATE INDEX IF NOT EXISTS payments_pay_to ON payments (pay_to, created_at DESC)`;
   })().catch(e => { ready = null; throw e; });
   return ready.then(() => sql);
@@ -96,7 +101,7 @@ app.get("/api/payments", auth, async (req, res) => {
     const q = await db();
     const m = await q`SELECT near_account FROM merchants WHERE user_id = ${req.userId}`;
     if (!m[0]) return res.json({ payments: [] });
-    const rows = await q`SELECT deposit_address, usd, status, created_at, customer FROM payments WHERE pay_to = ${m[0].near_account} ORDER BY created_at DESC LIMIT 50`;
+    const rows = await q`SELECT deposit_address, usd, status, created_at, customer, nft_tx FROM payments WHERE pay_to = ${m[0].near_account} ORDER BY created_at DESC LIMIT 50`;
     res.json({ payments: rows });
   } catch (e) { res.status(503).json({ error: "Could not load history." }); }
 });
@@ -119,6 +124,9 @@ app.post("/api/quote", async (req, res) => {
   try {
     const { amount, originAsset, refundTo, to } = req.body;
     const customer = String(req.body.customer || "").trim().slice(0, 60);
+    const shop = String(req.body.shop || "").trim().slice(0, 40);
+    const rt = String(req.body.receiptTo || "").trim().toLowerCase();
+    const receiptTo = rt && rt.length <= 64 && NEAR_NAME.test(rt) ? rt : null;
     const payTo = typeof to === "string" && to.length <= 64 && NEAR_NAME.test(to) ? to : MERCHANT_NEAR_ACCOUNT;
     const usd = Number(amount);
     if (!(usd > 0 && usd <= 10000)) return res.status(400).json({ error: "Amount must be between 0 and 10,000." });
@@ -147,20 +155,94 @@ app.post("/api/quote", async (req, res) => {
     const q = data.quote;
     try {
       const d = await db();
-      await d`INSERT INTO payments (deposit_address, pay_to, usd, origin_asset, customer) VALUES (${q.depositAddress}, ${payTo}, ${usd}, ${originAsset}, ${customer}) ON CONFLICT DO NOTHING`;
+      await d`INSERT INTO payments (deposit_address, pay_to, usd, origin_asset, customer, receipt_to, shop) VALUES (${q.depositAddress}, ${payTo}, ${usd}, ${originAsset}, ${customer}, ${receiptTo}, ${shop}) ON CONFLICT DO NOTHING`;
     } catch (e) { /* history is optional; never block a payment */ }
     res.json({ depositAddress: q.depositAddress, amountIn: q.amountInFormatted || q.amountIn, deadline: q.deadline || data.quoteRequest?.deadline, memo: q.memo || null });
   } catch (e) { res.status(500).json({ error: "Could not get a quote." }); }
+});
+
+// ---- NFT receipt (Mintbase store on NEAR) ----
+const { MINTBASE_STORE, MINTER_ACCOUNT, MINTER_KEY } = process.env;
+const BASE_URL = process.env.PUBLIC_URL || "https://bexley-pay.vercel.app";
+let minter;
+async function getMinter() {
+  if (!minter) {
+    const { connect, keyStores, KeyPair } = require("near-api-js");
+    const keyStore = new keyStores.InMemoryKeyStore();
+    await keyStore.setKey("mainnet", MINTER_ACCOUNT, KeyPair.fromString(MINTER_KEY));
+    const near = await connect({ networkId: "mainnet", keyStore, nodeUrl: NEAR_RPCS[0] });
+    minter = await near.account(MINTER_ACCOUNT);
+  }
+  return minter;
+}
+// Mint one receipt NFT for a paid order. Safe to call twice: only one call can win the lock.
+async function mintReceipt(depositAddress) {
+  if (!sql || !MINTBASE_STORE || !MINTER_ACCOUNT || !MINTER_KEY) return null;
+  const q = await db();
+  const rows = await q`UPDATE payments SET nft_state = 'minting', nft_tries = nft_tries + 1 WHERE deposit_address = ${depositAddress} AND status = 'SUCCESS' AND nft_tx IS NULL AND (nft_state IS NULL OR nft_state = 'failed') AND nft_tries < 3 RETURNING pay_to, receipt_to, usd, customer, shop, created_at`;
+  if (!rows[0]) return null;
+  const p = rows[0];
+  try {
+    const acct = await getMinter();
+    const id = encodeURIComponent(depositAddress);
+    const result = await acct.functionCall({
+      contractId: MINTBASE_STORE,
+      methodName: "nft_batch_mint",
+      args: {
+        owner_id: p.receipt_to || p.pay_to,
+        metadata: {
+          title: `Bexley Pay receipt, $${Number(p.usd).toFixed(2)}`,
+          description: `Paid $${Number(p.usd).toFixed(2)} USDC to ${p.shop || p.pay_to} (${p.pay_to})${p.customer ? ", invoice for " + p.customer : ""}. Paid with NEAR Intents.`,
+          media: `${BASE_URL}/api/receipt-image?id=${id}`,
+          reference: `${BASE_URL}/api/receipt-image?id=${id}`,
+          extra: "receipt",
+        },
+        num_to_mint: 1,
+        royalty_args: null,
+        split_owners: null,
+      },
+      gas: BigInt("200000000000000"),
+      attachedDeposit: BigInt(1),
+    });
+    const tx = result.transaction?.hash || result.transaction_outcome?.id;
+    await q`UPDATE payments SET nft_state = 'done', nft_tx = ${tx} WHERE deposit_address = ${depositAddress}`;
+    return tx;
+  } catch (e) {
+    console.error("mint failed", e.message);
+    try { await q`UPDATE payments SET nft_state = 'failed' WHERE deposit_address = ${depositAddress}`; } catch (_) {}
+    return null;
+  }
+}
+
+const esc = t => String(t || "").replace(/[<>&"']/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c]));
+// The picture on the receipt NFT
+app.get("/api/receipt-image", async (req, res) => {
+  try {
+    const q = await db();
+    const r = (await q`SELECT pay_to, usd, customer, shop, created_at FROM payments WHERE deposit_address = ${String(req.query.id || "")} AND status = 'SUCCESS'`)[0];
+    if (!r) return res.status(404).send("Not found");
+    const date = new Date(r.created_at).toISOString().slice(0, 10);
+    res.set("Content-Type", "image/svg+xml").set("Cache-Control", "public, max-age=3600").send(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400"><rect width="640" height="400" rx="28" fill="#050505"/><rect x="40" y="40" width="48" height="48" rx="12" fill="#12C47A"/><text x="64" y="74" font-family="Helvetica,Arial,sans-serif" font-size="30" font-weight="700" fill="#031a0d" text-anchor="middle">b</text><text x="104" y="74" font-family="Helvetica,Arial,sans-serif" font-size="26" font-weight="600" fill="#f2f2f2">Bexley Pay receipt</text><text x="40" y="190" font-family="Helvetica,Arial,sans-serif" font-size="72" font-weight="700" fill="#12C47A">$${esc(Number(r.usd).toFixed(2))}</text><text x="40" y="250" font-family="Helvetica,Arial,sans-serif" font-size="24" fill="#f2f2f2">Paid to ${esc(r.shop || r.pay_to)}</text><text x="40" y="285" font-family="Helvetica,Arial,sans-serif" font-size="18" fill="#8a8f8a">${esc(r.pay_to)}</text>${r.customer ? `<text x="40" y="320" font-family="Helvetica,Arial,sans-serif" font-size="18" fill="#8a8f8a">Invoice for ${esc(r.customer)}</text>` : ""}<text x="40" y="365" font-family="Helvetica,Arial,sans-serif" font-size="16" fill="#8a8f8a">${date} · USDC on NEAR · via NEAR Intents</text></svg>`);
+  } catch (e) { res.status(503).send("Unavailable"); }
 });
 
 app.get("/api/status", async (req, res) => {
   try {
     const r = await fetch(`${API}/status?depositAddress=${encodeURIComponent(req.query.depositAddress || "")}`, { headers: headers() });
     const d = await r.json();
+    let nft = null;
     if (d.status && sql) {
-      try { const q = await db(); await q`UPDATE payments SET status = ${d.status} WHERE deposit_address = ${String(req.query.depositAddress || "")}`; } catch (e) {}
+      const dep = String(req.query.depositAddress || "");
+      try {
+        const q = await db();
+        await q`UPDATE payments SET status = ${d.status} WHERE deposit_address = ${dep}`;
+        if (d.status === "SUCCESS") {
+          nft = await mintReceipt(dep);
+          if (!nft) nft = (await q`SELECT nft_tx FROM payments WHERE deposit_address = ${dep}`)[0]?.nft_tx || null;
+        }
+      } catch (e) {}
     }
-    res.json({ status: d.status });
+    res.json({ status: d.status, nft });
   } catch (e) { res.status(500).json({ error: "Could not check status." }); }
 });
 
