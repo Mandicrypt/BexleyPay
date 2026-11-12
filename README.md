@@ -112,3 +112,7 @@ Next:
 - Apple sign-in
 - Email receipts and CSV export for bookkeeping
 - Settlement to other assets
+
+## License
+
+MIT. See [LICENSE](LICENSE).
