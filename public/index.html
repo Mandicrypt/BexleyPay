@@ -87,8 +87,6 @@ footer{color:var(--mute);font-size:13px;margin-top:24px}
     <label for="token">Pay with this token</label><select id="token"></select>
     <label for="refund">Your refund address on that chain</label>
     <input id="refund" placeholder="Where we return the money if the payment fails">
-    <label for="rcpt">Receipt NFT goes to this .near account (optional)</label>
-    <input id="rcpt" placeholder="yourname.near" autocapitalize="none" autocorrect="off" spellcheck="false">
     <button id="getQuote">Get payment details</button>
     <div class="err" id="err"></div>
   </div>
@@ -154,7 +152,7 @@ if(!amount){
   $("getQuote").onclick=async()=>{
     $("err").textContent=""; $("getQuote").disabled=true;
     const r=await fetch("/api/quote",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({amount,originAsset:$("token").value,refundTo:$("refund").value.trim(),to:qs.get("to"),customer:cust,shop,receiptTo:$("rcpt").value.trim()})});
+      body:JSON.stringify({amount,originAsset:$("token").value,refundTo:$("refund").value.trim(),to:qs.get("to"),customer:cust,shop})});
     const d=await r.json(); $("getQuote").disabled=false;
     if(!r.ok){ $("err").textContent=d.error; return; }
     $("step1").classList.add("hide"); $("step2").classList.remove("hide"); setStep(2);
