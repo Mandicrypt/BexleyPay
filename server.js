@@ -8,6 +8,35 @@ const app = express();
 app.use(express.json());
 app.use(express.static("public"));
 
+// A named NEAR account, like yourname.near
+const NEAR_NAME = /^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:\.[a-z0-9]+(?:[-_][a-z0-9]+)*)*\.near$/;
+const NEAR_RPCS = ["https://free.rpc.fastnear.com", "https://rpc.mainnet.near.org"];
+
+// Check that a .near account exists before a merchant saves it
+app.get("/api/account", async (req, res) => {
+  const id = String(req.query.id || "").trim().toLowerCase();
+  if (id.length > 64 || !NEAR_NAME.test(id)) {
+    return res.status(400).json({ ok: false, error: "Enter a NEAR account that ends in .near, like yourname.near." });
+  }
+  for (const rpc of NEAR_RPCS) {
+    try {
+      const r = await fetch(rpc, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: "1", method: "query", params: { request_type: "view_account", finality: "final", account_id: id } }),
+        signal: AbortSignal.timeout(6000),
+      });
+      const j = await r.json();
+      if (j.result) return res.json({ ok: true });
+      const text = JSON.stringify(j.error || {});
+      if (/UNKNOWN_ACCOUNT|does not exist/i.test(text)) {
+        return res.status(404).json({ ok: false, error: "This account was not found on NEAR. Check the spelling." });
+      }
+    } catch (e) { /* try the next server */ }
+  }
+  res.status(503).json({ ok: false, error: "Could not check right now. Try again in a moment." });
+});
+
 const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${ONECLICK_JWT}` });
 let tokenCache = { at: 0, data: [] };
 
@@ -25,8 +54,7 @@ app.get("/api/tokens", async (_req, res) => {
 app.post("/api/quote", async (req, res) => {
   try {
     const { amount, originAsset, refundTo, to } = req.body;
-    const OK = /^(?:[a-f0-9]{64}|[a-z0-9]+(?:[-_.][a-z0-9]+)*)$/;
-    const payTo = to && to.length >= 2 && to.length <= 64 && OK.test(to) ? to : MERCHANT_NEAR_ACCOUNT;
+    const payTo = typeof to === "string" && to.length <= 64 && NEAR_NAME.test(to) ? to : MERCHANT_NEAR_ACCOUNT;
     const usd = Number(amount);
     if (!(usd > 0 && usd <= 10000)) return res.status(400).json({ error: "Amount must be between 0 and 10,000." });
     if (!originAsset || !refundTo) return res.status(400).json({ error: "Pick a token and enter a refund address." });
