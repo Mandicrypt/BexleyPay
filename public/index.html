@@ -148,6 +148,7 @@ if(!amount){
         $("receipt").classList.remove("hide");
         $("receipt").innerHTML=`Paid to <b></b><br>Amount <b>$${Number(amount).toFixed(2)}</b><br>Time <b>${new Date().toLocaleString()}</b>`;
         $("receipt").querySelector("b").textContent=shop||"the seller";
+        { const r=document.createElement("a"); r.href="/receipt.html?id="+encodeURIComponent(d.depositAddress); r.target="_blank"; r.textContent="View your receipt"; r.style.cssText="display:block;margin-top:10px;color:var(--g)"; $("receipt").appendChild(r); }
         if(s.nft){ const a=document.createElement("a"); a.href="https://nearblocks.io/txns/"+s.nft; a.target="_blank"; a.rel="noopener"; a.textContent="Receipt NFT minted. View it"; a.style.cssText="display:block;margin-top:10px;color:var(--g)"; $("receipt").appendChild(a); } }
       if(["SUCCESS","REFUNDED","FAILED"].includes(s.status)) clearInterval(poll);
     },5000);
