@@ -37,9 +37,10 @@ button:disabled{opacity:.5}
 .receipt b{color:var(--ink);font-weight:500}
 .hero{margin:0 0 20px}.hero h1{font-size:34px;line-height:1.1;letter-spacing:-1.2px;margin:0 0 10px}.how{display:flex;gap:8px;margin-top:16px}.how div{flex:1;font-size:13px;color:var(--mute);border-top:3px solid var(--line);padding-top:8px}.how b{display:block;color:var(--g);font-size:15px}
 a.btn{display:block;text-align:center;margin-top:18px;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:15px;font-weight:600;text-decoration:none}
+.signin{margin-left:auto;color:var(--ink);text-decoration:none;font-size:14px;font-weight:600;border:1px solid var(--line);border-radius:10px;padding:7px 14px}.signin:hover{border-color:var(--g)}
 footer{color:var(--mute);font-size:13px;margin-top:24px}
 </style></head><body>
-<header><img class="logo" src="/favicon.svg" alt="Bexley Pay"><span>Bexley Pay</span></header>
+<header><img class="logo" src="/favicon.svg" alt="Bexley Pay"><span>Bexley Pay</span><a class="signin hide" id="hSignin" href="/merchant/">Sign in</a></header>
 <main>
 
 <section id="seller" class="hide">
@@ -111,7 +112,7 @@ const qs=new URLSearchParams(location.search);
 const amount=qs.get("amount"), note=qs.get("note")||"", shop=qs.get("shop")||"", cust=qs.get("for")||"";
 
 if(!amount){
-  $("seller").classList.remove("hide");
+  $("seller").classList.remove("hide"); $("hSignin").classList.remove("hide");
   const NAME=/^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:\.[a-z0-9]+(?:[-_][a-z0-9]+)*)*\.near$/;
   $("makeLink").onclick=async()=>{
     $("sErr").textContent="";
