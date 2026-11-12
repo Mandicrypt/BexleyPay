@@ -25,6 +25,7 @@ function Dashboard() {
   const [out, setOut] = useState(null);
   const [err, setErr] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [tab, setTab] = useState("new");
   const [hist, setHist] = useState(null);
 
   const key = user ? "bexley_payout_" + user.id : null;
@@ -106,19 +107,20 @@ function Dashboard() {
             {acctErr && <div className="err">{acctErr}</div>}
           </>)}
         </div>
-        {saved && <div className="card"><h2>New payment</h2>
+        {saved && <div className="tabs"><button className={tab === "new" ? "on" : ""} onClick={() => setTab("new")}>New payment</button><button className={tab === "hist" ? "on" : ""} onClick={() => { setTab("hist"); loadHist(); }}>History</button></div>}
+        {saved && tab === "new" && <div className="card"><h2>New payment</h2>
           <label>Shop name</label><input value={f.shop} onChange={set("shop")} placeholder="Bexley Gadgets" />
           <label>Amount in USD</label><input type="number" min="1" step="0.01" value={f.amount} onChange={set("amount")} placeholder="40" />
           <label>What is it for?</label><input value={f.note} onChange={set("note")} placeholder="Phone case" />
           <button onClick={make}>Create payment QR</button>
           {err && <div className="err">{err}</div>}
         </div>}
-        {out && <div className="card" style={{ textAlign: "center" }}>
+        {saved && tab === "new" && out && <div className="card" style={{ textAlign: "center" }}>
           <p className="mute" style={{ marginBottom: 12 }}>Customer scans this with their phone camera</p>
           <div className="qr"><img src={out.qr} alt="Payment QR" /></div>
           <div className="addr" style={{ textAlign: "left" }}>{out.link}</div>
           <button className="ghost" onClick={() => navigator.clipboard.writeText(out.link)}>Copy link</button></div>}
-        {saved && <div className="card"><h2>Payments</h2>
+        {saved && tab === "hist" && <div className="card"><h2>History</h2>
           {hist === null ? <p className="mute">Loading…</p> : hist.length === 0 ? <p className="mute">No payments yet. Payments to {saved} show here.</p> :
             hist.map(p => <div key={p.deposit_address} className="row"><div><b>${Number(p.usd).toFixed(2)}</b><div className="mute sm">{new Date(p.created_at).toLocaleString()}</div></div><span className={"tag " + label(p.status).cls}>{label(p.status).t}</span></div>)}
           <button className="ghost" onClick={loadHist}>Refresh</button></div>}
