@@ -4,6 +4,33 @@ const API = "https://1click.chaindefuser.com/v0";
 // USDC on NEAR (the seller always receives this)
 const USDC_NEAR = "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1";
 const { ONECLICK_JWT, MERCHANT_NEAR_ACCOUNT, FEE_BPS, FEE_RECIPIENT } = process.env;
+const { neon } = require("@neondatabase/serverless");
+const PRIVY_APP_ID = process.env.PRIVY_APP_ID || "cmwaflyog00o30hjsmoppvmnr";
+const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null;
+let ready;
+function db() {
+  if (!sql) throw new Error("no database");
+  ready = ready || (async () => {
+    await sql`CREATE TABLE IF NOT EXISTS merchants (user_id text PRIMARY KEY, near_account text NOT NULL, updated_at timestamptz DEFAULT now())`;
+    await sql`CREATE TABLE IF NOT EXISTS payments (deposit_address text PRIMARY KEY, pay_to text NOT NULL, usd numeric NOT NULL, origin_asset text, status text DEFAULT 'PENDING', created_at timestamptz DEFAULT now())`;
+    await sql`CREATE INDEX IF NOT EXISTS payments_pay_to ON payments (pay_to, created_at DESC)`;
+  })().catch(e => { ready = null; throw e; });
+  return ready.then(() => sql);
+}
+
+// Check the Privy sign-in token the browser sends
+let jwks;
+async function auth(req, res, next) {
+  try {
+    const { createRemoteJWKSet, jwtVerify } = await import("jose");
+    jwks = jwks || createRemoteJWKSet(new URL(`https://auth.privy.io/api/v1/apps/${PRIVY_APP_ID}/jwks.json`));
+    const token = (req.headers.authorization || "").replace(/^Bearer /, "");
+    const { payload } = await jwtVerify(token, jwks, { issuer: "privy.io", audience: PRIVY_APP_ID });
+    req.userId = payload.sub;
+    next();
+  } catch (e) { res.status(401).json({ error: "Please sign in again." }); }
+}
+
 const app = express();
 app.use(express.json());
 app.use(express.static("public"));
@@ -13,11 +40,9 @@ const NEAR_NAME = /^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:\.[a-z0-9]+(?:[-_][a-z0-9]+)*)
 const NEAR_RPCS = ["https://free.rpc.fastnear.com", "https://rpc.mainnet.near.org"];
 
 // Check that a .near account exists before a merchant saves it
-app.get("/api/account", async (req, res) => {
-  const id = String(req.query.id || "").trim().toLowerCase();
-  if (id.length > 64 || !NEAR_NAME.test(id)) {
-    return res.status(400).json({ ok: false, error: "Enter a NEAR account that ends in .near, like yourname.near." });
-  }
+async function checkAccount(raw) {
+  const id = String(raw || "").trim().toLowerCase();
+  if (id.length > 64 || !NEAR_NAME.test(id)) return { code: 400, error: "Enter a NEAR account that ends in .near, like yourname.near." };
   for (const rpc of NEAR_RPCS) {
     try {
       const r = await fetch(rpc, {
@@ -27,14 +52,50 @@ app.get("/api/account", async (req, res) => {
         signal: AbortSignal.timeout(6000),
       });
       const j = await r.json();
-      if (j.result) return res.json({ ok: true });
-      const text = JSON.stringify(j.error || {});
-      if (/UNKNOWN_ACCOUNT|does not exist/i.test(text)) {
-        return res.status(404).json({ ok: false, error: "This account was not found on NEAR. Check the spelling." });
-      }
+      if (j.result) return { id };
+      if (/UNKNOWN_ACCOUNT|does not exist/i.test(JSON.stringify(j.error || {}))) return { code: 404, error: "This account was not found on NEAR. Check the spelling." };
     } catch (e) { /* try the next server */ }
   }
-  res.status(503).json({ ok: false, error: "Could not check right now. Try again in a moment." });
+  return { code: 503, error: "Could not check right now. Try again in a moment." };
+}
+
+app.get("/api/account", async (req, res) => {
+  const r = await checkAccount(req.query.id);
+  if (r.error) return res.status(r.code).json({ ok: false, error: r.error });
+  res.json({ ok: true });
+});
+
+// The merchant's saved account
+app.get("/api/me", auth, async (req, res) => {
+  try {
+    const q = await db();
+    const rows = await q`SELECT near_account FROM merchants WHERE user_id = ${req.userId}`;
+    res.json({ account: rows[0]?.near_account || null });
+  } catch (e) { res.status(503).json({ error: "Could not load your account." }); }
+});
+app.put("/api/me", auth, async (req, res) => {
+  const r = await checkAccount(req.body?.account);
+  if (r.error) return res.status(r.code).json({ ok: false, error: r.error });
+  try {
+    const q = await db();
+    await q`INSERT INTO merchants (user_id, near_account) VALUES (${req.userId}, ${r.id}) ON CONFLICT (user_id) DO UPDATE SET near_account = ${r.id}, updated_at = now()`;
+    res.json({ ok: true, account: r.id });
+  } catch (e) { res.status(503).json({ ok: false, error: "Could not save right now. Try again." }); }
+});
+app.delete("/api/me", auth, async (req, res) => {
+  try { const q = await db(); await q`DELETE FROM merchants WHERE user_id = ${req.userId}`; res.json({ ok: true }); }
+  catch (e) { res.status(503).json({ ok: false }); }
+});
+
+// Payment history for the signed-in merchant's account
+app.get("/api/payments", auth, async (req, res) => {
+  try {
+    const q = await db();
+    const m = await q`SELECT near_account FROM merchants WHERE user_id = ${req.userId}`;
+    if (!m[0]) return res.json({ payments: [] });
+    const rows = await q`SELECT deposit_address, usd, status, created_at FROM payments WHERE pay_to = ${m[0].near_account} ORDER BY created_at DESC LIMIT 50`;
+    res.json({ payments: rows });
+  } catch (e) { res.status(503).json({ error: "Could not load history." }); }
 });
 
 const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${ONECLICK_JWT}` });
@@ -80,6 +141,10 @@ app.post("/api/quote", async (req, res) => {
     const data = await r.json();
     if (!r.ok) return res.status(r.status).json({ error: data.message || "Quote failed." });
     const q = data.quote;
+    try {
+      const d = await db();
+      await d`INSERT INTO payments (deposit_address, pay_to, usd, origin_asset) VALUES (${q.depositAddress}, ${payTo}, ${usd}, ${originAsset}) ON CONFLICT DO NOTHING`;
+    } catch (e) { /* history is optional; never block a payment */ }
     res.json({ depositAddress: q.depositAddress, amountIn: q.amountInFormatted || q.amountIn, deadline: q.deadline || data.quoteRequest?.deadline, memo: q.memo || null });
   } catch (e) { res.status(500).json({ error: "Could not get a quote." }); }
 });
@@ -88,6 +153,9 @@ app.get("/api/status", async (req, res) => {
   try {
     const r = await fetch(`${API}/status?depositAddress=${encodeURIComponent(req.query.depositAddress || "")}`, { headers: headers() });
     const d = await r.json();
+    if (d.status && sql) {
+      try { const q = await db(); await q`UPDATE payments SET status = ${d.status} WHERE deposit_address = ${String(req.query.depositAddress || "")}`; } catch (e) {}
+    }
     res.json({ status: d.status });
   } catch (e) { res.status(500).json({ error: "Could not check status." }); }
 });

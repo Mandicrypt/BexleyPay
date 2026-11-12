@@ -8,8 +8,15 @@ const APP_ID = import.meta.env.VITE_PRIVY_APP_ID || "cmwaflyog00o30hjsmoppvmnr";
 const NAME = /^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:\.[a-z0-9]+(?:[-_][a-z0-9]+)*)*\.near$/;
 const NAME_HELP = "Enter a NEAR account that ends in .near, like yourname.near.";
 
+function label(s) {
+  if (s === "SUCCESS") return { t: "Paid", cls: "paid" };
+  if (s === "REFUNDED" || s === "FAILED") return { t: s === "FAILED" ? "Failed" : "Refunded", cls: "bad" };
+  if (s === "PROCESSING" || s === "KNOWN_DEPOSIT_TX") return { t: "Processing", cls: "wait" };
+  return { t: "Waiting", cls: "wait" };
+}
+
 function Dashboard() {
-  const { ready, authenticated, login, logout, user } = usePrivy();
+  const { ready, authenticated, login, logout, user, getAccessToken } = usePrivy();
   const [acct, setAcct] = useState("");
   const [saved, setSaved] = useState("");
   const [checking, setChecking] = useState(false);
@@ -17,18 +24,37 @@ function Dashboard() {
   const [f, setF] = useState({ shop: "", amount: "", note: "" });
   const [out, setOut] = useState(null);
   const [err, setErr] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [hist, setHist] = useState(null);
 
   const key = user ? "bexley_payout_" + user.id : null;
   const email = user?.email?.address || user?.google?.email || "Signed in";
 
-  // Remember the merchant's account in this browser (a database comes later)
+  async function api(path, opts = {}) {
+    const token = await getAccessToken();
+    const r = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", Authorization: "Bearer " + token } });
+    const d = await r.json().catch(() => ({}));
+    return { ok: r.ok, d };
+  }
+
+  // Load the merchant's saved account from the database
   useEffect(() => {
-    if (!key) { setSaved(""); setAcct(""); return; }
-    try {
-      const v = localStorage.getItem(key);
-      if (v && NAME.test(v)) { setSaved(v); setAcct(v); }
-    } catch (e) {}
-  }, [key]);
+    if (!authenticated) { setSaved(""); setAcct(""); setLoaded(false); setHist(null); return; }
+    (async () => {
+      try {
+        const { ok, d } = await api("/api/me");
+        if (ok && d.account) { setSaved(d.account); setAcct(d.account); }
+        else if (!ok) setAcctErr(d.error || "Could not load your account.");
+        else { try { const v = key && localStorage.getItem(key); if (v && NAME.test(v)) setAcct(v); } catch (e) {} }
+      } catch (e) { setAcctErr("Could not load your account."); }
+      setLoaded(true);
+    })();
+  }, [authenticated, key]);
+
+  async function loadHist() {
+    try { const { ok, d } = await api("/api/payments"); if (ok) setHist(d.payments); } catch (e) {}
+  }
+  useEffect(() => { if (saved) loadHist(); }, [saved]);
 
   async function verify() {
     setAcctErr("");
@@ -36,19 +62,15 @@ function Dashboard() {
     if (id.length > 64 || !NAME.test(id)) return setAcctErr(NAME_HELP);
     setChecking(true);
     try {
-      const r = await fetch("/api/account?id=" + encodeURIComponent(id));
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok || !d.ok) setAcctErr(d.error || "Could not check this account.");
-      else {
-        setSaved(id); setAcct(id);
-        try { localStorage.setItem(key, id); } catch (e) {}
-      }
-    } catch (e) { setAcctErr("Could not check right now. Try again."); }
+      const { ok, d } = await api("/api/me", { method: "PUT", body: JSON.stringify({ account: id }) });
+      if (!ok || !d.ok) setAcctErr(d.error || "Could not save this account.");
+      else { setSaved(d.account); setAcct(d.account); }
+    } catch (e) { setAcctErr("Could not save right now. Try again."); }
     setChecking(false);
   }
-  function change() {
-    setSaved(""); setOut(null);
-    try { localStorage.removeItem(key); } catch (e) {}
+  async function change() {
+    setSaved(""); setOut(null); setHist(null);
+    try { await api("/api/me", { method: "DELETE" }); } catch (e) {}
   }
 
   async function make() {
@@ -67,7 +89,7 @@ function Dashboard() {
     <div className="wrap">
       <div className="top"><div className="logo">B</div>Bexley Pay<span className="sp" />
         {authenticated && <button className="ghost link" onClick={logout}>Sign out</button>}</div>
-      {!ready ? <p className="mute">Loading…</p> : !authenticated ? (
+      {!ready || (authenticated && !loaded) ? <p className="mute">Loading…</p> : !authenticated ? (
         <div className="card"><h2>Accept crypto from any chain</h2>
           <p className="mute">Sign in with email or Google. Add your .near account, and customers pay you in USDC from any chain.</p>
           <button onClick={login}>Sign in</button></div>
@@ -96,6 +118,10 @@ function Dashboard() {
           <div className="qr"><img src={out.qr} alt="Payment QR" /></div>
           <div className="addr" style={{ textAlign: "left" }}>{out.link}</div>
           <button className="ghost" onClick={() => navigator.clipboard.writeText(out.link)}>Copy link</button></div>}
+        {saved && <div className="card"><h2>Payments</h2>
+          {hist === null ? <p className="mute">Loading…</p> : hist.length === 0 ? <p className="mute">No payments yet. Payments to {saved} show here.</p> :
+            hist.map(p => <div key={p.deposit_address} className="row"><div><b>${Number(p.usd).toFixed(2)}</b><div className="mute sm">{new Date(p.created_at).toLocaleString()}</div></div><span className={"tag " + label(p.status).cls}>{label(p.status).t}</span></div>)}
+          <button className="ghost" onClick={loadHist}>Refresh</button></div>}
       </>)}
     </div>
   );
