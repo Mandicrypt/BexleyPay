@@ -14,6 +14,7 @@ function db() {
     await sql`CREATE TABLE IF NOT EXISTS merchants (user_id text PRIMARY KEY, near_account text NOT NULL, updated_at timestamptz DEFAULT now())`;
     await sql`ALTER TABLE merchants ADD COLUMN IF NOT EXISTS shop_name text`;
     await sql`CREATE TABLE IF NOT EXISTS payments (deposit_address text PRIMARY KEY, pay_to text NOT NULL, usd numeric NOT NULL, origin_asset text, status text DEFAULT 'PENDING', created_at timestamptz DEFAULT now())`;
+    await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer text`;
     await sql`CREATE INDEX IF NOT EXISTS payments_pay_to ON payments (pay_to, created_at DESC)`;
   })().catch(e => { ready = null; throw e; });
   return ready.then(() => sql);
@@ -95,7 +96,7 @@ app.get("/api/payments", auth, async (req, res) => {
     const q = await db();
     const m = await q`SELECT near_account FROM merchants WHERE user_id = ${req.userId}`;
     if (!m[0]) return res.json({ payments: [] });
-    const rows = await q`SELECT deposit_address, usd, status, created_at FROM payments WHERE pay_to = ${m[0].near_account} ORDER BY created_at DESC LIMIT 50`;
+    const rows = await q`SELECT deposit_address, usd, status, created_at, customer FROM payments WHERE pay_to = ${m[0].near_account} ORDER BY created_at DESC LIMIT 50`;
     res.json({ payments: rows });
   } catch (e) { res.status(503).json({ error: "Could not load history." }); }
 });
@@ -117,6 +118,7 @@ app.get("/api/tokens", async (_req, res) => {
 app.post("/api/quote", async (req, res) => {
   try {
     const { amount, originAsset, refundTo, to } = req.body;
+    const customer = String(req.body.customer || "").trim().slice(0, 60);
     const payTo = typeof to === "string" && to.length <= 64 && NEAR_NAME.test(to) ? to : MERCHANT_NEAR_ACCOUNT;
     const usd = Number(amount);
     if (!(usd > 0 && usd <= 10000)) return res.status(400).json({ error: "Amount must be between 0 and 10,000." });
@@ -145,7 +147,7 @@ app.post("/api/quote", async (req, res) => {
     const q = data.quote;
     try {
       const d = await db();
-      await d`INSERT INTO payments (deposit_address, pay_to, usd, origin_asset) VALUES (${q.depositAddress}, ${payTo}, ${usd}, ${originAsset}) ON CONFLICT DO NOTHING`;
+      await d`INSERT INTO payments (deposit_address, pay_to, usd, origin_asset, customer) VALUES (${q.depositAddress}, ${payTo}, ${usd}, ${originAsset}, ${customer}) ON CONFLICT DO NOTHING`;
     } catch (e) { /* history is optional; never block a payment */ }
     res.json({ depositAddress: q.depositAddress, amountIn: q.amountInFormatted || q.amountIn, deadline: q.deadline || data.quoteRequest?.deadline, memo: q.memo || null });
   } catch (e) { res.status(500).json({ error: "Could not get a quote." }); }

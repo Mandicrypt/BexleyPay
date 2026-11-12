@@ -22,7 +22,7 @@ function Dashboard() {
   const [checking, setChecking] = useState(false);
   const [acctErr, setAcctErr] = useState("");
   const [shop, setShop] = useState("");
-  const [f, setF] = useState({ amount: "", note: "" });
+  const [f, setF] = useState({ customer: "", amount: "", note: "" });
   const [out, setOut] = useState(null);
   const [err, setErr] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -82,6 +82,7 @@ function Dashboard() {
     const u = new URL(location.origin + "/");
     u.searchParams.set("amount", f.amount); u.searchParams.set("to", saved);
     if (f.note) u.searchParams.set("note", f.note);
+    if (f.customer.trim()) u.searchParams.set("for", f.customer.trim());
     if (shop) u.searchParams.set("shop", shop);
     setOut({ link: u.href, qr: await QRCode.toDataURL(u.href, { width: 440, margin: 1 }) });
   }
@@ -113,6 +114,7 @@ function Dashboard() {
         </div>
         {saved && <div className="tabs"><button className={tab === "new" ? "on" : ""} onClick={() => setTab("new")}>New payment</button><button className={tab === "hist" ? "on" : ""} onClick={() => { setTab("hist"); loadHist(); }}>History</button></div>}
         {saved && tab === "new" && <div className="card"><h2>New payment</h2>
+          <label>Invoice for (customer name)</label><input value={f.customer} onChange={set("customer")} placeholder="Ada Okafor" maxLength={60} />
           <label>Amount in USD</label><input type="number" min="1" step="0.01" value={f.amount} onChange={set("amount")} placeholder="40" />
           <label>What is it for?</label><input value={f.note} onChange={set("note")} placeholder="Phone case" />
           <button onClick={make}>Create payment QR</button>
@@ -125,7 +127,7 @@ function Dashboard() {
           <button className="ghost" onClick={() => navigator.clipboard.writeText(out.link)}>Copy link</button></div>}
         {saved && tab === "hist" && <div className="card"><h2>History</h2>
           {hist === null ? <p className="mute">Loading…</p> : hist.length === 0 ? <p className="mute">No payments yet. Payments to {saved} show here.</p> :
-            hist.map(p => <div key={p.deposit_address} className="row"><div><b>${Number(p.usd).toFixed(2)}</b><div className="mute sm">{new Date(p.created_at).toLocaleString()}</div></div><span className={"tag " + label(p.status).cls}>{label(p.status).t}</span></div>)}
+            hist.map(p => <div key={p.deposit_address} className="row"><div><b>${Number(p.usd).toFixed(2)}</b><div className="mute sm">{p.customer ? p.customer + " · " : ""}{new Date(p.created_at).toLocaleString()}</div></div><span className={"tag " + label(p.status).cls}>{label(p.status).t}</span></div>)}
           <button className="ghost" onClick={loadHist}>Refresh</button></div>}
       </>)}
     </div>

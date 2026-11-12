@@ -62,6 +62,7 @@ footer{color:var(--mute);font-size:13px;margin-top:24px}
   <div class="steps"><div id="s1" class="on">1 Choose</div><div id="s2">2 Send</div><div id="s3">3 Paid</div></div>
   <div class="card">
     <p class="shop" id="bShop"></p>
+    <p class="note" id="bFor" style="margin:2px 0 0"></p>
     <p class="amount"><i>$</i><span id="bAmount"></span></p>
     <p class="note" id="bNote"></p>
   </div>
@@ -88,7 +89,7 @@ footer{color:var(--mute);font-size:13px;margin-top:24px}
 <script>
 const $=id=>document.getElementById(id);
 const qs=new URLSearchParams(location.search);
-const amount=qs.get("amount"), note=qs.get("note")||"", shop=qs.get("shop")||"";
+const amount=qs.get("amount"), note=qs.get("note")||"", shop=qs.get("shop")||"", cust=qs.get("for")||"";
 
 if(!amount){
   $("seller").classList.remove("hide");
@@ -108,7 +109,7 @@ if(!amount){
 } else {
   $("buyer").classList.remove("hide");
   $("bAmount").textContent=Number(amount).toFixed(2);
-  $("bNote").textContent=note; $("bShop").textContent=shop||"Payment";
+  $("bNote").textContent=note; $("bShop").textContent=shop||"Payment"; $("bFor").textContent=cust?"Invoice for "+cust:"";
   const setStep=n=>["s1","s2","s3"].forEach((id,i)=>$(id).classList.toggle("on",i<n));
   let tokens=[];
   const fillTokens=()=>{ const c=$("chain").value;
@@ -121,7 +122,7 @@ if(!amount){
   $("getQuote").onclick=async()=>{
     $("err").textContent=""; $("getQuote").disabled=true;
     const r=await fetch("/api/quote",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({amount,originAsset:$("token").value,refundTo:$("refund").value.trim(),to:qs.get("to")})});
+      body:JSON.stringify({amount,originAsset:$("token").value,refundTo:$("refund").value.trim(),to:qs.get("to"),customer:cust})});
     const d=await r.json(); $("getQuote").disabled=false;
     if(!r.ok){ $("err").textContent=d.error; return; }
     $("step1").classList.add("hide"); $("step2").classList.remove("hide"); setStep(2);
