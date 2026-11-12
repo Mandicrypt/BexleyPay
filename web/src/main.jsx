@@ -90,7 +90,7 @@ function Dashboard() {
 
   return (
     <div className="wrap">
-      <div className="top"><div className="logo">B</div>Bexley Pay<span className="sp" />
+      <div className="top"><img className="logo" src="/favicon.svg" alt="Bexley Pay" />Bexley Pay<span className="sp" />
         {authenticated && <button className="ghost link" onClick={logout}>Sign out</button>}</div>
       {!ready || (authenticated && !loaded) ? <p className="mute">Loading…</p> : !authenticated ? (
         <div className="card"><h2>Accept crypto from any chain</h2>

@@ -9,7 +9,7 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,"Segoe UI",Helvetica,Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:28px 20px}
 header{width:100%;max-width:440px;display:flex;align-items:center;gap:10px;margin-bottom:28px;font-weight:600}
-.logo{width:30px;height:30px;border-radius:8px;background:var(--g);color:#031a0d;display:grid;place-items:center;font-size:14px;font-weight:700}
+.logo{width:30px;height:30px;display:block}
 main{width:100%;max-width:440px;flex:1}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px;margin-bottom:16px}
 .shop{color:var(--mute);font-size:14px;margin:0}
@@ -37,7 +37,7 @@ button:disabled{opacity:.5}
 .receipt b{color:var(--ink);font-weight:500}
 footer{color:var(--mute);font-size:13px;margin-top:24px}
 </style></head><body>
-<header><div class="logo">B</div><span>Bexley Pay</span></header>
+<header><img class="logo" src="/favicon.svg" alt="Bexley Pay"><span>Bexley Pay</span></header>
 <main>
 
 <section id="seller" class="hide">
