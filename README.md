@@ -34,11 +34,15 @@ You do not need to pay to see the flow. A real payment needs real money (there i
 4. Click "Get payment details". You should see a deposit address, the amount to send, and a countdown.
 5. Optional: send that amount from any wallet. The page changes to Paid and shows a receipt link.
 
-**Merchant side**
-1. Open https://bexley-pay.vercel.app/merchant/ and click Sign in (email or Google).
-2. Enter a shop name and a `.near` account, then Save. A made-up account should show "not found on NEAR".
-3. On the New payment tab, enter an amount and click "Create payment QR". You should see a QR code and a link.
-4. Open the History tab. Created payments are listed with a status. Paid ones have a Receipt link.
+**Merchant side, no sign-in**
+1. Open https://bexley-pay.vercel.app/
+2. Enter a `.near` account, a shop name and an amount, then click "Create payment QR". A made-up account should show "not found on NEAR".
+3. You should see a QR code and a link. Open the link to see the customer page.
+
+**Merchant dashboard, with sign-in (saves your account and shows history)**
+1. Click "Sign in to your dashboard", or open https://bexley-pay.vercel.app/merchant/ and sign in with email or Google.
+2. Save your shop name and `.near` account once.
+3. On the New payment tab, create a payment. On the History tab, see each payment with its status. Paid ones have a Receipt link.
 
 ## How it works
 
@@ -53,7 +57,8 @@ You do not need to pay to see the flow. A real payment needs real money (there i
 
 - Pay from any chain and token that NEAR Intents supports
 - QR code for shop counters, plus shareable links
-- Merchant sign-in with email or Google (Privy)
+- No-sign-in QR maker on the front page, for any merchant with a `.near` account
+- Optional merchant sign-in with email or Google (Privy), to save the account and see history
 - Merchants enter their own `.near` account. The server checks that the account exists before saving it
 - Payment history with status for each payment
 - Customer name on each invoice

@@ -35,26 +35,41 @@ button:disabled{opacity:.5}
 .state{font-size:18px;margin:4px 0 0}
 .receipt{border-top:1px dashed var(--line);margin-top:16px;padding-top:12px;color:var(--mute);font-size:14px}
 .receipt b{color:var(--ink);font-weight:500}
+.hero{margin:0 0 20px}.hero h1{font-size:34px;line-height:1.1;letter-spacing:-1.2px;margin:0 0 10px}.how{display:flex;gap:8px;margin-top:16px}.how div{flex:1;font-size:13px;color:var(--mute);border-top:3px solid var(--line);padding-top:8px}.how b{display:block;color:var(--g);font-size:15px}
+a.btn{display:block;text-align:center;margin-top:18px;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:15px;font-weight:600;text-decoration:none}
 footer{color:var(--mute);font-size:13px;margin-top:24px}
 </style></head><body>
 <header><img class="logo" src="/favicon.svg" alt="Bexley Pay"><span>Bexley Pay</span></header>
 <main>
 
 <section id="seller" class="hide">
+  <div class="hero">
+    <h1>Get paid in crypto from any chain.</h1>
+    <p class="note">Make a QR code for your shop. Your customer pays from any wallet on any chain. You receive USDC on your own .near account.</p>
+    <div class="how"><div><b>1</b>Make a QR</div><div><b>2</b>Customer scans and pays</div><div><b>3</b>You get USDC on NEAR</div></div>
+  </div>
   <div class="card">
-    <h2>Get paid from any chain</h2>
-    <p class="note">Make a link or a QR code. Your customer pays from any crypto app. You receive USDC on NEAR.</p>
-    <label for="sShop">Shop name</label><input id="sShop" placeholder="Bexley Gadgets">
+    <h2>Make a payment QR</h2>
+    <p class="note">No sign-in needed.</p>
+    <label for="sAcct">Your NEAR account (where you get paid)</label><input id="sAcct" placeholder="yourname.near" autocapitalize="none" autocorrect="off" spellcheck="false">
+    <label for="sShop">Shop name</label><input id="sShop" placeholder="Bexley Gadgets" maxlength="40">
+    <label for="sCust">Invoice for (customer name, optional)</label><input id="sCust" placeholder="Ada Okafor" maxlength="60">
     <label for="sAmount">Amount in USD</label><input id="sAmount" type="number" min="1" step="0.01" placeholder="40">
     <label for="sNote">What is it for?</label><input id="sNote" placeholder="Phone case">
     <button id="makeLink">Create payment QR</button>
+    <div class="err" id="sErr"></div>
   </div>
   <div id="linkOut" class="card hide center">
     <p class="note" style="margin-bottom:14px">Customer scans this with their phone camera</p>
     <div class="qr" id="qr"></div>
-    <label>Or send this link</label><div class="addr" id="linkText"></div>
+    <label>Or send this link</label><div class="addr" id="linkText" style="text-align:left"></div>
     <button class="ghost" id="copyLink">Copy link</button>
     <button class="ghost" id="openLink">Open payment page</button>
+  </div>
+  <div class="card">
+    <h2 style="font-size:22px">Want your payments saved?</h2>
+    <p class="note">Sign in to save your account and shop name once, and see your payment history and receipts.</p>
+    <a class="btn" href="/merchant/">Sign in to your dashboard</a>
   </div>
 </section>
 
@@ -97,17 +112,29 @@ const amount=qs.get("amount"), note=qs.get("note")||"", shop=qs.get("shop")||"",
 
 if(!amount){
   $("seller").classList.remove("hide");
-  $("makeLink").onclick=()=>{
-    const a=$("sAmount").value; if(!(a>0)) return;
+  const NAME=/^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:\.[a-z0-9]+(?:[-_][a-z0-9]+)*)*\.near$/;
+  $("makeLink").onclick=async()=>{
+    $("sErr").textContent="";
+    const acct=$("sAcct").value.trim().toLowerCase();
+    if(acct.length>64||!NAME.test(acct)) return $("sErr").textContent="Enter a NEAR account that ends in .near, like yourname.near.";
+    const a=$("sAmount").value; if(!(a>0)) return $("sErr").textContent="Enter an amount.";
+    const btn=$("makeLink"); btn.disabled=true; btn.textContent="Checking account…";
+    try{
+      const r=await fetch("/api/account?id="+encodeURIComponent(acct)); const d=await r.json().catch(()=>({}));
+      if(!r.ok||!d.ok){ $("sErr").textContent=d.error||"Could not check this account."; return; }
+    }catch(e){ $("sErr").textContent="Could not check right now. Try again."; return; }
+    finally{ btn.disabled=false; btn.textContent="Create payment QR"; }
     const u=new URL(location.origin+location.pathname);
-    u.searchParams.set("amount",a);
+    u.searchParams.set("amount",a); u.searchParams.set("to",acct);
     if($("sNote").value) u.searchParams.set("note",$("sNote").value);
     if($("sShop").value) u.searchParams.set("shop",$("sShop").value);
+    if($("sCust").value.trim()) u.searchParams.set("for",$("sCust").value.trim());
     $("linkText").textContent=u.href; $("linkOut").classList.remove("hide");
     $("qr").innerHTML="";
     if(window.QRCode) new QRCode($("qr"),{text:u.href,width:220,height:220,colorDark:"#000000",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M});
     else $("qr").textContent="QR could not load. Check your internet and refresh.";
     $("openLink").onclick=()=>window.open(u.href,"_blank");
+    $("linkOut").scrollIntoView({behavior:"smooth"});
   };
   $("copyLink").onclick=()=>{navigator.clipboard.writeText($("linkText").textContent);$("copyLink").textContent="Copied";};
 } else {
