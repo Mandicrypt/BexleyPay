@@ -5,7 +5,13 @@
 Live app: https://bexley-pay.vercel.app  
 Merchant dashboard: https://bexley-pay.vercel.app/merchant/
 
-Built for the NEAR Hackathon 2026 on the [NEAR Intents](https://near-intents.org) 1Click API.
+Built for NEAR HACKATHON 2026. Track: **Real-World Money** (merchant payments and stablecoin rails).
+
+## How NEAR is used
+
+- **NEAR Intents, 1Click Swap API** (`/tokens`, `/quote`, `/status`): moves the customer's payment from any supported chain into USDC on NEAR, with refunds on the origin chain.
+- **USDC on NEAR** is what the merchant receives, straight into their own named account.
+- **Named `.near` accounts** are the merchant's payout account. The server checks each one against NEAR RPC before saving it.
 
 ## The problem
 
@@ -16,6 +22,23 @@ A shop that accepts crypto usually accepts one chain. A customer holding SOL, ET
 The merchant makes a payment link or QR code for the shop counter. The customer scans it, picks the chain and token they already hold, and sends from any wallet or exchange app. NEAR Intents handles the swap and the cross-chain move. The merchant receives **USDC on their own `.near` account**.
 
 No bridge for the customer. No exchange step. No wallet for the merchant to create or manage.
+
+## Try it (for judges)
+
+You do not need to pay to see the flow. A real payment needs real money (there is no NEAR Intents testnet), so the last step is optional.
+
+**Customer side, no sign-in**
+1. Open https://bexley-pay.vercel.app/?amount=1&to=bexley.near&shop=Demo%20Shop&for=Judge
+2. You should see "Demo Shop", "Invoice for Judge" and $1.00.
+3. Pick a chain and a token. Enter a refund address on that chain.
+4. Click "Get payment details". You should see a deposit address, the amount to send, and a countdown.
+5. Optional: send that amount from any wallet. The page changes to Paid and shows a receipt link.
+
+**Merchant side**
+1. Open https://bexley-pay.vercel.app/merchant/ and click Sign in (email or Google).
+2. Enter a shop name and a `.near` account, then Save. A made-up account should show "not found on NEAR".
+3. On the New payment tab, enter an amount and click "Create payment QR". You should see a QR code and a link.
+4. Open the History tab. Created payments are listed with a status. Paid ones have a Receipt link.
 
 ## How it works
 
@@ -46,6 +69,16 @@ No bridge for the customer. No exchange step. No wallet for the merchant to crea
 - Vite and React for the merchant dashboard, Privy for sign-in
 - Neon Postgres for merchant accounts and payment history
 - Hosted on Vercel
+
+## Built during the hackathon
+
+All code in this repository was written between the start of the hackathon window and the deadline, with AI coding assistance (Claude). The 1Click API key comes from the NEAR Intents partner portal. No other code is reused.
+
+Libraries: Express, Vite, React, `@privy-io/react-auth`, `qrcode`, `@neondatabase/serverless`, `jose`, `near-api-js`, `dotenv`.
+
+## Other project by the same team
+
+Bexley (https://bexley-sigma.vercel.app) is a separate entry: a leveraged-token protocol on NEAR, with its own repository and submission. Bexley Pay is independent of it.
 
 ## Run it yourself
 
