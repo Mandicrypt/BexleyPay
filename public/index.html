@@ -79,6 +79,8 @@ footer{color:var(--mute);font-size:13px;margin-top:24px}
   <div class="card hide" id="step2">
     <label style="margin-top:0">Send exactly</label><div class="addr" id="sendAmt"></div>
     <label>To this address</label><div class="addr" id="sendAddr"></div>
+    <div class="qr" id="addrQr" style="margin:14px auto 0"></div>
+    <p class="note" style="text-align:center;font-size:13px;margin-top:8px">Scan to fill in the address. Type the exact amount yourself.</p>
     <button class="ghost" id="copyAddr">Copy address</button>
     <p class="note" id="timer" style="margin-top:16px"></p>
     <p class="state" id="state">Waiting for your payment…</p>
@@ -131,6 +133,7 @@ if(!amount){
     const sym=$("token").selectedOptions[0].textContent;
     $("sendAmt").textContent=`${d.amountIn} ${sym}`+(d.memo?`  (memo: ${d.memo})`:"");
     $("sendAddr").textContent=d.depositAddress;
+    $("addrQr").innerHTML=""; if(window.QRCode) new QRCode($("addrQr"),{text:d.depositAddress,width:180,height:180,colorDark:"#000000",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M}); else $("addrQr").remove();
     $("copyAddr").onclick=()=>{navigator.clipboard.writeText(d.depositAddress);$("copyAddr").textContent="Copied";};
     // Show at most 20 minutes, even if the quote lasts longer
     const end=Math.min(new Date(d.deadline).getTime()||Infinity, Date.now()+20*60*1000);
