@@ -12,6 +12,7 @@ function db() {
   if (!sql) throw new Error("no database");
   ready = ready || (async () => {
     await sql`CREATE TABLE IF NOT EXISTS merchants (user_id text PRIMARY KEY, near_account text NOT NULL, updated_at timestamptz DEFAULT now())`;
+    await sql`ALTER TABLE merchants ADD COLUMN IF NOT EXISTS shop_name text`;
     await sql`CREATE TABLE IF NOT EXISTS payments (deposit_address text PRIMARY KEY, pay_to text NOT NULL, usd numeric NOT NULL, origin_asset text, status text DEFAULT 'PENDING', created_at timestamptz DEFAULT now())`;
     await sql`CREATE INDEX IF NOT EXISTS payments_pay_to ON payments (pay_to, created_at DESC)`;
   })().catch(e => { ready = null; throw e; });
@@ -69,17 +70,18 @@ app.get("/api/account", async (req, res) => {
 app.get("/api/me", auth, async (req, res) => {
   try {
     const q = await db();
-    const rows = await q`SELECT near_account FROM merchants WHERE user_id = ${req.userId}`;
-    res.json({ account: rows[0]?.near_account || null });
+    const rows = await q`SELECT near_account, shop_name FROM merchants WHERE user_id = ${req.userId}`;
+    res.json({ account: rows[0]?.near_account || null, shop: rows[0]?.shop_name || "" });
   } catch (e) { res.status(503).json({ error: "Could not load your account." }); }
 });
 app.put("/api/me", auth, async (req, res) => {
   const r = await checkAccount(req.body?.account);
   if (r.error) return res.status(r.code).json({ ok: false, error: r.error });
   try {
+    const shop = String(req.body?.shop || "").trim().slice(0, 40);
     const q = await db();
-    await q`INSERT INTO merchants (user_id, near_account) VALUES (${req.userId}, ${r.id}) ON CONFLICT (user_id) DO UPDATE SET near_account = ${r.id}, updated_at = now()`;
-    res.json({ ok: true, account: r.id });
+    await q`INSERT INTO merchants (user_id, near_account, shop_name) VALUES (${req.userId}, ${r.id}, ${shop}) ON CONFLICT (user_id) DO UPDATE SET near_account = ${r.id}, shop_name = ${shop}, updated_at = now()`;
+    res.json({ ok: true, account: r.id, shop });
   } catch (e) { res.status(503).json({ ok: false, error: "Could not save right now. Try again." }); }
 });
 app.delete("/api/me", auth, async (req, res) => {

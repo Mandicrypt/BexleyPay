@@ -21,7 +21,8 @@ function Dashboard() {
   const [saved, setSaved] = useState("");
   const [checking, setChecking] = useState(false);
   const [acctErr, setAcctErr] = useState("");
-  const [f, setF] = useState({ shop: "", amount: "", note: "" });
+  const [shop, setShop] = useState("");
+  const [f, setF] = useState({ amount: "", note: "" });
   const [out, setOut] = useState(null);
   const [err, setErr] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -44,7 +45,7 @@ function Dashboard() {
     (async () => {
       try {
         const { ok, d } = await api("/api/me");
-        if (ok && d.account) { setSaved(d.account); setAcct(d.account); }
+        if (ok && d.account) { setSaved(d.account); setAcct(d.account); setShop(d.shop || ""); }
         else if (!ok) setAcctErr(d.error || "Could not load your account.");
         else { try { const v = key && localStorage.getItem(key); if (v && NAME.test(v)) setAcct(v); } catch (e) {} }
       } catch (e) { setAcctErr("Could not load your account."); }
@@ -63,9 +64,9 @@ function Dashboard() {
     if (id.length > 64 || !NAME.test(id)) return setAcctErr(NAME_HELP);
     setChecking(true);
     try {
-      const { ok, d } = await api("/api/me", { method: "PUT", body: JSON.stringify({ account: id }) });
+      const { ok, d } = await api("/api/me", { method: "PUT", body: JSON.stringify({ account: id, shop: shop.trim() }) });
       if (!ok || !d.ok) setAcctErr(d.error || "Could not save this account.");
-      else { setSaved(d.account); setAcct(d.account); }
+      else { setSaved(d.account); setAcct(d.account); setShop(d.shop || ""); }
     } catch (e) { setAcctErr("Could not save right now. Try again."); }
     setChecking(false);
   }
@@ -81,7 +82,7 @@ function Dashboard() {
     const u = new URL(location.origin + "/");
     u.searchParams.set("amount", f.amount); u.searchParams.set("to", saved);
     if (f.note) u.searchParams.set("note", f.note);
-    if (f.shop) u.searchParams.set("shop", f.shop);
+    if (shop) u.searchParams.set("shop", shop);
     setOut({ link: u.href, qr: await QRCode.toDataURL(u.href, { width: 440, margin: 1 }) });
   }
   const set = k => e => setF({ ...f, [k]: e.target.value });
@@ -98,18 +99,20 @@ function Dashboard() {
         <div className="card"><p className="mute">{email}</p>
           <label>Your NEAR account (where you get paid)</label>
           {saved ? (<>
+            {shop && <p style={{ margin: "0 0 8px", fontWeight: 600 }}>{shop}</p>}
             <div className="addr">{saved}</div>
             <p className="ok" style={{ margin: "10px 0 0" }}>Account found. Payments go here as USDC.</p>
-            <button className="ghost" onClick={change}>Change account</button>
+            <button className="ghost" onClick={change}>Change shop or account</button>
           </>) : (<>
             <input value={acct} onChange={e => setAcct(e.target.value)} placeholder="yourname.near" autoCapitalize="none" autoCorrect="off" spellCheck="false" />
-            <button onClick={verify} disabled={checking}>{checking ? "Checking…" : "Save account"}</button>
+            <label>Your shop name (customers see this)</label>
+            <input value={shop} onChange={e => setShop(e.target.value)} placeholder="Bexley Gadgets" maxLength={40} />
+            <button onClick={verify} disabled={checking}>{checking ? "Checking…" : "Save"}</button>
             {acctErr && <div className="err">{acctErr}</div>}
           </>)}
         </div>
         {saved && <div className="tabs"><button className={tab === "new" ? "on" : ""} onClick={() => setTab("new")}>New payment</button><button className={tab === "hist" ? "on" : ""} onClick={() => { setTab("hist"); loadHist(); }}>History</button></div>}
         {saved && tab === "new" && <div className="card"><h2>New payment</h2>
-          <label>Shop name</label><input value={f.shop} onChange={set("shop")} placeholder="Bexley Gadgets" />
           <label>Amount in USD</label><input type="number" min="1" step="0.01" value={f.amount} onChange={set("amount")} placeholder="40" />
           <label>What is it for?</label><input value={f.note} onChange={set("note")} placeholder="Phone case" />
           <button onClick={make}>Create payment QR</button>
